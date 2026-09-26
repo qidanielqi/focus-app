@@ -1,4 +1,4 @@
-use std::{sync::{Mutex, MutexGuard}, time::{SystemTime, UNIX_EPOCH}};
+use std::sync::{Mutex, MutexGuard};
 use tauri::{Emitter, Manager};
 
 #[derive(Default)]
@@ -14,8 +14,8 @@ pub struct PopoutState {
 
 impl PopoutState {
     pub fn active(&self) -> bool {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-        self.session_id.is_some() && self.deadline.is_none_or(|deadline| deadline > now)
+        // A countdown deadline is not Session finalization. Finished Timers can extend.
+        self.session_id.is_some()
     }
     pub fn allows(&self, generation: u64) -> bool {
         self.requested && self.active() && self.generation == generation
@@ -77,6 +77,7 @@ mod tests {
     #[test]
     fn closed_and_stale_generations_cannot_reveal_but_paused_sessions_can() {
         let mut state = PopoutState { session_id: Some("test".into()), deadline: None, requested: true, generation: 5 };
+        state.deadline = Some(1); // An elapsed deadline remains extendable.
         assert!(state.allows(5));
         assert!(!state.allows(4));
         state.requested = false;

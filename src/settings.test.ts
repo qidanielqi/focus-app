@@ -123,21 +123,21 @@ describe("goal duration limits", () => {
 
 it("applies new defaults only to missing values and preserves saved preferences", async () => {
   const testDb = database();
-  expect(await loadSettings(testDb)).toMatchObject({dailyGoalEnabled:true,dailyGoalSeconds:7200,weeklyGoalEnabled:true,weeklyGoalSeconds:43200,popoutCloseOnCompletion:true,popoutRevealShortcut:"Alt+Backquote",weekdayStyle:"short"});
-  for (const key of ["dailyGoalEnabled","weeklyGoalEnabled","popoutCloseOnCompletion"] as const) await saveSetting(key,false,testDb);
+  expect(await loadSettings(testDb)).toMatchObject({dailyGoalEnabled:true,dailyGoalSeconds:7200,weeklyGoalEnabled:true,weeklyGoalSeconds:43200,popoutRevealShortcut:"Ctrl+Alt+KeyF",weekdayStyle:"short"});
+  for (const key of ["dailyGoalEnabled","weeklyGoalEnabled"] as const) await saveSetting(key,false,testDb);
   await saveSetting("popoutRevealShortcut","Ctrl+Alt+KeyF",testDb);
   await saveSetting("weekdayStyle","full",testDb);
   await saveSetting("showWeekday",false,testDb);
   await saveSetting("dateFormat","numeric",testDb);
-  expect(await loadSettings(testDb)).toMatchObject({dailyGoalEnabled:false,weeklyGoalEnabled:false,popoutCloseOnCompletion:false,popoutRevealShortcut:"Ctrl+Alt+KeyF",weekdayStyle:"full"});
+  expect(await loadSettings(testDb)).toMatchObject({dailyGoalEnabled:false,weeklyGoalEnabled:false,popoutRevealShortcut:"Ctrl+Alt+KeyF",weekdayStyle:"full"});
 });
 
-it.each(["F12", "Ctrl+F8", "Alt+Shift+F11", "Alt+`"])("persistently migrates legacy %s", async shortcut => {
+it.each(["F12", "Ctrl+F8", "Alt+Shift+F11", "Alt+`", "Alt+Backquote"])("persistently migrates legacy %s", async shortcut => {
   const testDb = database();
   await testDb.settings.put({key:"popoutRevealShortcut",value:shortcut});
-  expect((await loadSettings(testDb)).popoutRevealShortcut).toBe("Alt+Backquote");
-  expect((await testDb.settings.get("popoutRevealShortcut"))?.value).toBe("Alt+Backquote");
-  expect((await loadSettings(testDb)).popoutRevealShortcut).toBe("Alt+Backquote");
+  expect((await loadSettings(testDb)).popoutRevealShortcut).toBe("Ctrl+Alt+KeyF");
+  expect((await testDb.settings.get("popoutRevealShortcut"))?.value).toBe("Ctrl+Alt+KeyF");
+  expect((await loadSettings(testDb)).popoutRevealShortcut).toBe("Ctrl+Alt+KeyF");
 });
 it.each(["", "Ctrl+KeyF", "Alt+Slash"])("preserves supported or cleared shortcut %s", async shortcut => {
   const testDb = database();
@@ -165,5 +165,27 @@ it("supports read-only settings consumption after migration", async () => {
  await testDb.settings.put({key:"popoutRevealShortcut",value:"F12"});
  await loadSettings(testDb);
  const settings=await testDb.transaction("r",testDb.settings,()=>loadSettings(testDb,false));
- expect(settings.popoutRevealShortcut).toBe("Alt+Backquote");
+ expect(settings.popoutRevealShortcut).toBe("Ctrl+Alt+KeyF");
+});
+
+
+it("preserves deliberate old-default choices after migration and cleared intent", async () => {
+  const testDb = database();
+  await saveSetting("popoutRevealShortcut", "Alt+Backquote", testDb);
+  expect(await loadSettings(testDb)).toMatchObject({ popoutRevealShortcut: "Alt+Backquote", popoutRevealShortcutIntent: "custom" });
+  await saveSetting("popoutRevealShortcut", "", testDb);
+  expect(await loadSettings(testDb)).toMatchObject({ popoutRevealShortcut: "", popoutRevealShortcutIntent: "cleared" });
+});
+
+it("clears invalid defaults without changing history or a valid disabled selection", async () => {
+  const testDb = database();
+  await testDb.academicYears.put({ id: "year", name: "Year", archived: false });
+  await testDb.subjects.put({ id: "subject", academicYearId: "year", name: "Subject", color: "blue", archived: false });
+  await testDb.settings.bulkPut([{ key: "currentAcademicYearId", value: "year" }, { key: "defaultSubjectId", value: "subject" }, { key: "subjectPickerMode", value: "remember" }]);
+  expect((await loadSettings(testDb)).defaultSubjectId).toBe("subject");
+  await testDb.subjects.update("subject", { archived: true });
+  expect(await loadSettings(testDb)).toMatchObject({ subjectPickerMode: "remember", defaultSubjectId: "" });
+  await testDb.subjects.update("subject", { archived: false });
+  await testDb.settings.bulkPut([{ key: "defaultSubjectId", value: "subject" }, { key: "subjectPickerMode", value: "fixed" }, { key: "currentAcademicYearId", value: "other" }]);
+  expect(await loadSettings(testDb)).toMatchObject({ subjectPickerMode: "remember", defaultSubjectId: "" });
 });

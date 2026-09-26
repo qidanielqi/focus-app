@@ -1,3 +1,4 @@
+import { CURRENT_YEAR_KEY } from "../data";
 import { resetPreferences } from "../resetPreferences";
 import { formatTimerDate, effectiveTimerDateFormat, timerDateFormats } from "../dateTime";
 import { edgesForCorner, dockEdgeOffset } from "../popoutPlacement";
@@ -121,13 +122,16 @@ function AutoHideDelayEditor({ value, onChange }: { value: number; onChange: (se
 
 function Timer({ settings, setSetting }: SettingsProps) {
   const { t } = useTranslation();
-  const subjects = useLiveQuery(() => db.subjects.filter((subject) => !subject.archived).sortBy("name"), []) ?? [];
+  const subjects = useLiveQuery(async () => {
+    const yearId = (await db.settings.get(CURRENT_YEAR_KEY))?.value;
+    return yearId ? db.subjects.where("academicYearId").equals(yearId).filter(subject => !subject.archived).sortBy("name") : [];
+  }, []) ?? [];
   return <><SettingsHeader title={t("Timer")}>{t("Behaviour during focus Sessions.")}</SettingsHeader>
     <div className="settings-subheading settings-group-heading"><strong>{t("General")}</strong></div>
     <Row label={t("New timer duration")}><select value={settings.timerDurationMode} onChange={(event) => void setSetting("timerDurationMode", event.target.value as FocusSettings["timerDurationMode"])}><option value="remember">{t("Remember last used")}</option><option value="fixed">{t("Fixed default")}</option></select></Row>
     {settings.timerDurationMode === "fixed" && <Row label={t("Fixed default duration")} hint={t("Values are normalized when you leave a field.")}><DurationEditor value={settings.fixedTimerDurationSeconds} onChange={(value) => void setSetting("fixedTimerDurationSeconds", value)}/></Row>}
     <Row label={t("Default Subject behavior")}><select value={settings.subjectPickerMode} onChange={(event) => void setSetting("subjectPickerMode", event.target.value as FocusSettings["subjectPickerMode"])}><option value="remember">{t("Remember last used")}</option><option value="fixed">{t("Configured Subject")}</option></select></Row>
-    {settings.subjectPickerMode === "fixed" && <Row label={t("Default Subject")}><select value={settings.defaultSubjectId} onChange={(event) => void setSetting("defaultSubjectId", event.target.value)}><option value="">{t("Choose Subject")}</option>{subjects.map((subject) => <option value={subject.id} key={subject.id}>{subject.name}</option>)}</select></Row>}
+    <Row label={t("Default Subject")} disabled={settings.subjectPickerMode !== "fixed"}><select disabled={settings.subjectPickerMode !== "fixed"} value={settings.defaultSubjectId} onChange={(event) => void setSetting("defaultSubjectId", event.target.value)}><option value="">{t("Choose Subject")}</option>{subjects.map((subject) => <option value={subject.id} key={subject.id}>{subject.name}</option>)}</select></Row>
     <div className="settings-subheading settings-group-heading"><strong>{t("Date and clock")}</strong></div>
     <Row label={t("Show date")}><Toggle label={t("Show date")} checked={settings.showDate} onChange={(value) => void setSetting("showDate", value)}/></Row>
     <Row label={t("Date format")} hint={formatTimerDate(new Date(), settings.language, settings.dateFormat, false)}><select disabled={!settings.showDate} aria-label={t("Date format")} value={effectiveTimerDateFormat(settings.language, settings.dateFormat)} onChange={(event) => void setSetting("dateFormat", event.target.value as FocusSettings["dateFormat"])}>{timerDateFormats(settings.language).map(format => <option key={format} value={format}>{t({ full: "Full", standard: "Standard", compact: "Compact", numeric: "Numeric" }[format])}</option>)}</select></Row>
@@ -205,7 +209,6 @@ function Popout({ settings, setSetting }: SettingsProps) {
     <Row label={t("Always on top by default")}><Toggle label={t("Always on top by default")} checked={settings.popoutAlwaysOnTop} onChange={(v) => void setSetting("popoutAlwaysOnTop", v)}/></Row>
     <Row label={t("Show popout in taskbar")}><Toggle label={t("Show popout in taskbar")} checked={settings.popoutShowInTaskbar} onChange={(v) => void setSetting("popoutShowInTaskbar", v)}/></Row>
     <Row label={t("Open popout automatically when a timer starts")}><Toggle label={t("Open popout automatically")} checked={settings.popoutAutoOpen} onChange={(v) => void setSetting("popoutAutoOpen", v)}/></Row>
-    <Row label={t("Close popout when timer finishes")}><Toggle label={t("Close popout on completion")} checked={settings.popoutCloseOnCompletion} onChange={(v) => void setSetting("popoutCloseOnCompletion", v)}/></Row>
     <Row hint={t("Reopen the floating popout at its last saved position.")} label={t("Restore floating position")}><Toggle label={t("Restore floating position")} checked={settings.popoutRememberPosition} onChange={(v) => void setSetting("popoutRememberPosition", v)}/></Row>
     <Row label={t("Show Subject")}><Toggle label={t("Show Subject")} checked={settings.popoutShowSubject} onChange={(v) => void setSetting("popoutShowSubject", v)}/></Row>
     <Row label={t("Show clock beside Subject")}><Toggle label={t("Show clock beside Subject")} checked={settings.popoutShowClock} onChange={(v) => void setSetting("popoutShowClock", v)}/></Row>
@@ -214,7 +217,7 @@ function Popout({ settings, setSetting }: SettingsProps) {
     <Row label={t("Transparency")} hint={`${settings.popoutTransparency}%`}><input aria-label={t("Transparency")} type="range" min="0" max="100" step="5" value={settings.popoutTransparency} onChange={(event) => void setSetting("popoutTransparency", Number(event.target.value))}/></Row>
     <Row label={t("Hide controls until hovered")}><Toggle label={t("Hide controls until hovered")} checked={settings.popoutHideControls} onChange={(v) => void setSetting("popoutHideControls", v)}/></Row>
     <Row label={t("Auto-hide controls after")}><select value={settings.popoutAutoHide} disabled={!settings.popoutHideControls} onChange={(event) => void setSetting("popoutAutoHide", event.target.value as FocusSettings["popoutAutoHide"])}><option value="500">{t("0.5 seconds")}</option><option value="1000">{t("1 second")}</option><option value="2000">{t("2 seconds")}</option><option value="never">{t("Never")}</option></select></Row>
-    <RestoreSection keys={["popoutAlwaysOnTop", "popoutRememberPosition", "popoutShowSubject", "popoutShowClock", "popoutSize", "popoutLayout", "popoutHideControls", "popoutAutoHide", "popoutAutoOpen", "popoutShowInTaskbar", "popoutCloseOnCompletion", "popoutTransparency", "popoutPositionX", "popoutPositionY", "popoutFloatingWidth", "popoutFloatingHeight", "popoutRevealShortcut", "popoutDockingEnabled", "popoutDockCorner", "popoutDockMonitor", "popoutDocked", "popoutDockAutoHide", "popoutAutoHideDelaySeconds", "popoutAutoHideTabSize", "popoutAutoHideShowAccent", "popoutAutoHideEdge", "popoutAutoHideOffset"]}/>
+    <RestoreSection keys={["popoutAlwaysOnTop", "popoutRememberPosition", "popoutShowSubject", "popoutShowClock", "popoutSize", "popoutLayout", "popoutHideControls", "popoutAutoHide", "popoutAutoOpen", "popoutShowInTaskbar", "popoutTransparency", "popoutPositionX", "popoutPositionY", "popoutFloatingWidth", "popoutFloatingHeight", "popoutRevealShortcut", "popoutDockingEnabled", "popoutDockCorner", "popoutDockMonitor", "popoutDocked", "popoutDockAutoHide", "popoutAutoHideDelaySeconds", "popoutAutoHideTabSize", "popoutAutoHideShowAccent", "popoutAutoHideEdge", "popoutAutoHideOffset"]}/>
   </>;
 }
 

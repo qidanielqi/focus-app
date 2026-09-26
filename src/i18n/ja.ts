@@ -1,6 +1,18 @@
 import en from "./en";
 
 const ja: Record<keyof typeof en, string> = {
+  "More start options": "開始オプション",
+  "Start stopwatch": "ストップウォッチを開始",
+  "Timer finished while Focus was closed": "Focus を閉じている間にタイマーが終了しました",
+  "Your {{subject}} timer finished at {{time}}.": "{{subject}} のタイマーは {{time}} に終了しました。",
+
+  "Unable to register the Reveal shortcut. Try another combination.": "表示ショートカットを登録できません。別の組み合わせをお試しください。",
+  "Details": "詳細",
+
+  "Check for updates on launch": "起動時に更新を確認する",
+  "Don't show again": "今後表示しない",
+  "Unable to save update preference. Try again.": "更新設定を保存できませんでした。もう一度お試しください。",
+
   "Timer": "タイマー",
   "Analytics": "分析",
   "History": "履歴",
@@ -98,8 +110,6 @@ const ja: Record<keyof typeof en, string> = {
   "Open popout automatically when a timer starts": "タイマーが開始するとポップアウトを自動的に開きます",
   "Open popout automatically": "ポップアウトを自動的に開く",
   "Show popout in taskbar": "タスクバーにポップアウトを表示",
-  "Close popout when timer finishes": "タイマーが終了したらポップアウトを閉じる",
-  "Close popout on completion": "完了時にポップアウトを閉じる",
   "Transparency": "透明性",
   "Corner docking": "コーナードッキング",
   "Dock the popout to a screen corner, with optional edge auto-hide.": "オプションのエッジ自動非表示を使用して、ポップアウトを画面の隅にドッキングします。",

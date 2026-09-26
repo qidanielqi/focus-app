@@ -4,6 +4,9 @@ export const ACTIVE_TIMER_STORAGE_KEY = "focus.activeTimer";
 export const LAST_TIMER_DURATION_KEY = "lastTimerDurationSeconds";
 
 export type TimerState = {
+  mode?: "timer" | "stopwatch";
+  expiredWhileClosed?: boolean;
+  expiredNoticeDismissed?: boolean;
   running: boolean;
   paused: boolean;
   subject: string;
@@ -67,17 +70,27 @@ export function normalizeTimerState(value: Partial<TimerState> | null | undefine
 }
 
 export function startTimerState(state: TimerState, seconds: number, subject: Subject, year: AcademicYear, now = Date.now(), sessionId: string = crypto.randomUUID()): TimerState {
-  return { ...state, subject: subject.name, subjectId: subject.id, subjectColor: subject.color, academicYearId: year.id, academicYearName: year.name, sessionId, running: true, paused: false, finished: false, finishedAt: null, startedAt: now, targetEnd: now + seconds * 1000, remainingSeconds: seconds, plannedDurationSeconds: seconds, accumulatedFocusedSeconds: 0, runningSince: now, focusIntervals: [], checkpointAt: now, checkpointRemainingSeconds: seconds, checkpointFocusedSeconds: 0, checkpointIntervals: [], saveFailed: false };
+  return { ...state, mode: "timer", expiredWhileClosed: false, expiredNoticeDismissed: false, subject: subject.name, subjectId: subject.id, subjectColor: subject.color, academicYearId: year.id, academicYearName: year.name, sessionId, running: true, paused: false, finished: false, finishedAt: null, startedAt: now, targetEnd: now + seconds * 1000, remainingSeconds: seconds, plannedDurationSeconds: seconds, accumulatedFocusedSeconds: 0, runningSince: now, focusIntervals: [], checkpointAt: now, checkpointRemainingSeconds: seconds, checkpointFocusedSeconds: 0, checkpointIntervals: [], saveFailed: false };
+}
+
+export function startStopwatchState(state: TimerState, subject: Subject, year: AcademicYear, now = Date.now(), sessionId: string = crypto.randomUUID()): TimerState {
+  return { ...startTimerState(state, state.plannedDurationSeconds, subject, year, now, sessionId), mode: "stopwatch", remainingSeconds: 0, targetEnd: null, checkpointRemainingSeconds: 0 };
+}
+
+/** Restore expiry without replaying completion effects or finalizing the Session. */
+export function restoreExpiredTimer(state: TimerState, now = Date.now()): TimerState {
+  if (!state.running || state.paused || state.finished || state.mode === "stopwatch" || state.targetEnd === null || state.targetEnd > now) return state;
+  return { ...finishTimerState(state, state.targetEnd), expiredWhileClosed: true, expiredNoticeDismissed: false };
 }
 
 export function focusedSecondsAt(state: TimerState, now: number) {
-  if (!state.runningSince || state.paused || state.finished) return state.accumulatedFocusedSeconds;
+  if (state.runningSince === null || state.paused || state.finished) return state.accumulatedFocusedSeconds;
   const end = state.targetEnd ? Math.min(now, state.targetEnd) : now;
   return state.accumulatedFocusedSeconds + Math.max(0, Math.round((end - state.runningSince) / 1000));
 }
 
 export function closeRunningInterval(state: TimerState, endTime: number): TimerState {
-  if (!state.runningSince) return state;
+  if (state.runningSince === null) return state;
   const end = state.targetEnd ? Math.min(endTime, state.targetEnd) : endTime;
   if (end <= state.runningSince) return { ...state, runningSince: null };
   return { ...state, accumulatedFocusedSeconds: focusedSecondsAt(state, end), runningSince: null, focusIntervals: [...state.focusIntervals, { startTime: state.runningSince, endTime: end }] };
@@ -89,10 +102,10 @@ export function finishTimerState(state: TimerState, endTime: number): TimerState
 }
 
 export function extendTimerState(state: TimerState, seconds: number, now = Date.now()): TimerState {
-  if (!state.running) return state;
+  if (!state.running || state.mode === "stopwatch") return state;
   if (seconds <= 0) return state;
   const fromFinished = Boolean(state.finished);
-  return { ...state, paused: fromFinished ? false : state.paused, finished: false, finishedAt: null, remainingSeconds: state.remainingSeconds + seconds, plannedDurationSeconds: state.plannedDurationSeconds + seconds, targetEnd: state.paused && !fromFinished ? null : (state.targetEnd ?? now) + seconds * 1000, runningSince: fromFinished ? now : state.runningSince, saveFailed: false };
+  return { ...state, expiredNoticeDismissed: true, paused: fromFinished ? false : state.paused, finished: false, finishedAt: null, remainingSeconds: state.remainingSeconds + seconds, plannedDurationSeconds: state.plannedDurationSeconds + seconds, targetEnd: state.paused && !fromFinished ? null : (state.targetEnd ?? now) + seconds * 1000, runningSince: fromFinished ? now : state.runningSince, saveFailed: false };
 }
 
 export function completedSession(state: TimerState, endTime: number): FocusSession | undefined {
@@ -104,7 +117,7 @@ export function completedSession(state: TimerState, endTime: number): FocusSessi
 }
 
 export function idleTimerState(state: TimerState): TimerState {
-  return { ...state, running: false, paused: false, finished: false, finishedAt: null, startedAt: null, targetEnd: null, sessionId: null, remainingSeconds: state.plannedDurationSeconds, note: "", accumulatedFocusedSeconds: 0, runningSince: null, focusIntervals: [], checkpointAt: null, checkpointRemainingSeconds: state.plannedDurationSeconds, checkpointFocusedSeconds: 0, checkpointIntervals: [], saveFailed: false };
+  return { ...state, mode: "timer", expiredWhileClosed: false, expiredNoticeDismissed: false, running: false, paused: false, finished: false, finishedAt: null, startedAt: null, targetEnd: null, sessionId: null, remainingSeconds: state.plannedDurationSeconds, note: "", accumulatedFocusedSeconds: 0, runningSince: null, focusIntervals: [], checkpointAt: null, checkpointRemainingSeconds: state.plannedDurationSeconds, checkpointFocusedSeconds: 0, checkpointIntervals: [], saveFailed: false };
 }
 
 export function localDateInputValue(stamp: number) {

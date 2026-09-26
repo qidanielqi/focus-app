@@ -5,6 +5,15 @@ import type { FocusSession } from "./types";
 const session = (startTime: number, endTime: number, intervals?: FocusSession["focusIntervals"]): FocusSession => ({ id: "s", subjectId: "subject", subjectName: "Subject", academicYearId: "year", academicYearName: "Year", startTime, endTime, focusedDurationSeconds: intervals ? intervals.reduce((sum, value) => sum + (value.endTime - value.startTime) / 1000, 0) : (endTime - startTime) / 1000, archived: false, focusIntervals: intervals });
 
 describe("study goal allocation", () => {
+  it("uses edited duration and dates instead of stale recorded intervals", () => {
+    const start = new Date(2026, 8, 22, 9).getTime(), end = start + 3 * 3600_000;
+    const row = session(start, end, [{ startTime: start, endTime: start + 8820_000 }]);
+    row.focusedDurationSeconds = 9000;
+    expect(goalProgress([row], start)).toEqual({ dailySeconds: 9000, weeklySeconds: 9000 });
+    row.startTime += 7 * 86400_000; row.endTime += 7 * 86400_000;
+    expect(goalProgress([row], start)).toEqual({ dailySeconds: 0, weeklySeconds: 0 });
+    expect(goalProgress([row], row.startTime)).toEqual({ dailySeconds: 9000, weeklySeconds: 9000 });
+  });
   it("splits continuous focus across local midnight", () => {
     const start = new Date(2026, 8, 21, 23, 30).getTime(), end = new Date(2026, 8, 22, 0, 30).getTime();
     const row = session(start, end, [{ startTime: start, endTime: end }]);

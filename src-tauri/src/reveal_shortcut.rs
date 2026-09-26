@@ -1,6 +1,6 @@
 use std::{str::FromStr, sync::Mutex};
 use tauri::{Emitter, Manager};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcut, Shortcut, ShortcutState};
 
 #[derive(Default)]
 pub struct RevealShortcut(Mutex<Option<Shortcut>>);
@@ -21,10 +21,7 @@ fn parse(value: &str) -> Result<Option<Shortcut>, String> {
 
 #[tauri::command]
 pub fn reveal_shortcut_available(app: tauri::AppHandle) -> bool {
-    #[cfg(target_os = "linux")]
-    { app.try_state::<tauri_plugin_global_shortcut::GlobalShortcut<tauri::Wry>>().is_some() }
-    #[cfg(not(target_os = "linux"))]
-    { let _ = app; true }
+    app.try_state::<GlobalShortcut<tauri::Wry>>().is_some()
 }
 
 // Async commands run away from the event-loop thread; the plugin dispatches its
@@ -33,10 +30,11 @@ pub fn reveal_shortcut_available(app: tauri::AppHandle) -> bool {
 pub async fn set_reveal_shortcut(window: tauri::WebviewWindow, shortcut: String) -> Result<(), String> {
     if window.label() != "main" { return Err("Only the main window can configure shortcuts".into()); }
     let app = window.app_handle();
-    #[cfg(target_os = "linux")]
-    if app.try_state::<tauri_plugin_global_shortcut::GlobalShortcut<tauri::Wry>>().is_none() {
-        return if shortcut.is_empty() { Ok(()) } else { Err("Global reveal shortcuts are unavailable on this Linux display backend".into()) };
-    }
+    // Do not panic while holding RevealShortcut's mutex if a backend is unavailable
+    // or a request arrives before plugin initialization. That poisons all later edits.
+    let Some(shortcuts) = app.try_state::<GlobalShortcut<tauri::Wry>>() else {
+        return if shortcut.is_empty() { Ok(()) } else { Err("Global reveal shortcuts are unavailable on this device.".into()) };
+    };
     let state = app.state::<RevealShortcut>();
     let mut current = state.0.lock().map_err(|_| "Shortcut state unavailable")?;
     let next = parse(&shortcut)?;
@@ -44,15 +42,15 @@ pub async fn set_reveal_shortcut(window: tauri::WebviewWindow, shortcut: String)
     // Acquire the new registration first. A conflict must leave the working
     // shortcut intact; only after success can the old registration be removed.
     if let Some(next) = next {
-        app.global_shortcut().on_shortcut(next, |app, _, event| {
+        shortcuts.on_shortcut(next, |app, _, event| {
             if event.state() == ShortcutState::Pressed {
                 let _ = app.emit_to("main", "focus://reveal-shortcut", ());
             }
         }).map_err(|e| e.to_string())?;
     }
     if let Some(previous) = *current {
-        if let Err(error) = app.global_shortcut().unregister(previous) {
-            if let Some(next) = next { let _ = app.global_shortcut().unregister(next); }
+        if let Err(error) = shortcuts.unregister(previous) {
+            if let Some(next) = next { let _ = shortcuts.unregister(next); }
             return Err(error.to_string());
         }
     }

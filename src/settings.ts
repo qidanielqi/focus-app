@@ -1,3 +1,4 @@
+import { CURRENT_YEAR_KEY } from "./data";
 import { defaultEdgeForCorner } from "./popoutPlacement";
 import { db, type FocusDatabase } from "./db";
 import { ACTIVE_TIMER_STORAGE_KEY, LAST_TIMER_DURATION_KEY, type TimerState } from "./timerState";
@@ -27,6 +28,7 @@ export type FocusSettings = {
   theme: Theme;
   startMaximized: boolean;
   launchAtStartup: boolean;
+  checkForUpdatesOnLaunch: boolean;
   timerDurationMode: TimerDurationMode;
   lastTimerDurationSeconds: number;
   fixedTimerDurationSeconds: number;
@@ -57,7 +59,6 @@ export type FocusSettings = {
   popoutAutoHide: PopoutAutoHide;
   popoutAutoOpen: boolean;
   popoutShowInTaskbar: boolean;
-  popoutCloseOnCompletion: boolean;
   popoutTransparency: number;
   popoutPositionX: number | null;
   popoutPositionY: number | null;
@@ -69,6 +70,7 @@ export type FocusSettings = {
   popoutDocked: boolean;
   popoutDockAutoHide: boolean;
   popoutRevealShortcut: string;
+  popoutRevealShortcutIntent: "default" | "custom" | "cleared";
   popoutAutoHideDelaySeconds: number;
   popoutAutoHideTabSize: AutoHideTabSize;
   popoutAutoHideShowAccent: boolean;
@@ -87,6 +89,7 @@ export const SETTINGS_KEYS: { [K in keyof FocusSettings]: string } = {
   theme: "theme",
   startMaximized: "startMaximized",
   launchAtStartup: "launchAtStartup",
+  checkForUpdatesOnLaunch: "checkForUpdatesOnLaunch",
   timerDurationMode: "timerDurationMode",
   lastTimerDurationSeconds: LAST_TIMER_DURATION_KEY,
   fixedTimerDurationSeconds: "fixedTimerDurationSeconds",
@@ -117,7 +120,6 @@ export const SETTINGS_KEYS: { [K in keyof FocusSettings]: string } = {
   popoutAutoHide: "popoutAutoHide",
   popoutAutoOpen: "popoutAutoOpen",
   popoutShowInTaskbar: "popoutShowInTaskbar",
-  popoutCloseOnCompletion: "popoutCloseOnCompletion",
   popoutTransparency: "popoutTransparency",
   popoutPositionX: "popoutPositionX",
   popoutPositionY: "popoutPositionY",
@@ -129,6 +131,7 @@ export const SETTINGS_KEYS: { [K in keyof FocusSettings]: string } = {
   popoutDocked: "popoutDocked",
   popoutDockAutoHide: "popoutDockAutoHide",
   popoutRevealShortcut: "popoutRevealShortcut",
+  popoutRevealShortcutIntent: "popoutRevealShortcutIntent",
   popoutAutoHideDelaySeconds: "popoutAutoHideDelaySeconds",
   popoutAutoHideTabSize: "popoutAutoHideTabSize",
   popoutAutoHideShowAccent: "popoutAutoHideShowAccent",
@@ -147,6 +150,7 @@ export const DEFAULT_SETTINGS: FocusSettings = {
   theme: "dark",
   startMaximized: true,
   launchAtStartup: false,
+  checkForUpdatesOnLaunch: true,
   timerDurationMode: "remember",
   lastTimerDurationSeconds: 75 * 60,
   fixedTimerDurationSeconds: 75 * 60,
@@ -177,7 +181,6 @@ export const DEFAULT_SETTINGS: FocusSettings = {
   popoutAutoHide: "1000",
   popoutAutoOpen: false,
   popoutShowInTaskbar: false,
-  popoutCloseOnCompletion: true,
   popoutTransparency: 100,
   popoutPositionX: null,
   popoutPositionY: null,
@@ -188,7 +191,8 @@ export const DEFAULT_SETTINGS: FocusSettings = {
   popoutDockMonitor: "current",
   popoutDocked: false,
   popoutDockAutoHide: false,
-  popoutRevealShortcut: "Alt+Backquote",
+  popoutRevealShortcut: "Ctrl+Alt+KeyF",
+  popoutRevealShortcutIntent: "default",
   popoutAutoHideDelaySeconds: 0.4,
   popoutAutoHideTabSize: "medium",
   popoutAutoHideShowAccent: true,
@@ -200,7 +204,7 @@ export const DEFAULT_SETTINGS: FocusSettings = {
   allowDirectActiveDeletion: false,
 };
 
-const booleans = new Set<keyof FocusSettings>(["startMaximized", "launchAtStartup", "showDate", "showWeekday", "showClock", "dailyGoalEnabled", "weeklyGoalEnabled", "completionSound", "completionNotification", "popoutAlwaysOnTop", "popoutRememberPosition", "popoutShowSubject", "popoutShowClock", "popoutHideControls", "popoutAutoOpen", "popoutShowInTaskbar", "popoutCloseOnCompletion", "popoutDockingEnabled", "popoutDocked", "popoutDockAutoHide", "popoutAutoHideShowAccent", "allowDirectActiveDeletion"]);
+const booleans = new Set<keyof FocusSettings>(["checkForUpdatesOnLaunch", "startMaximized", "launchAtStartup", "showDate", "showWeekday", "showClock", "dailyGoalEnabled", "weeklyGoalEnabled", "completionSound", "completionNotification", "popoutAlwaysOnTop", "popoutRememberPosition", "popoutShowSubject", "popoutShowClock", "popoutHideControls", "popoutAutoOpen", "popoutShowInTaskbar", "popoutDockingEnabled", "popoutDocked", "popoutDockAutoHide", "popoutAutoHideShowAccent", "allowDirectActiveDeletion"]);
 const numbers = new Set<keyof FocusSettings>(["lastTimerDurationSeconds", "fixedTimerDurationSeconds", "dailyGoalSeconds", "weeklyGoalSeconds", "completionSoundVolume", "popoutTransparency", "popoutPositionX", "popoutPositionY", "popoutFloatingWidth", "popoutFloatingHeight", "popoutAutoHideOffset", "popoutAutoHideDelaySeconds"]);
 
 export const GOAL_MAX_HOURS = { dailyGoalSeconds: 24, weeklyGoalSeconds: 168 } as const;
@@ -235,6 +239,7 @@ function decode<K extends keyof FocusSettings>(key: K, raw: string | undefined):
     weekdayStyle: ["full", "short"], language: ["en", "zh-CN", "zh-TW", "ja"], theme: ["dark", "light"], timerDurationMode: ["remember", "fixed"], subjectPickerMode: ["remember", "fixed"], dateFormat: ["full", "standard", "compact", "numeric"], clockFormat: ["system", "12-hour", "24-hour"],
     completionSoundChoice: ["soft-chime", "bell", "digital", "gentle", "bright"], popoutAutoHide: ["500", "1000", "2000", "never"],
     popoutDockCorner: ["top-left", "top-right", "bottom-left", "bottom-right"], popoutAutoHideEdge: ["top", "right", "bottom", "left"],
+    popoutRevealShortcutIntent: ["default", "custom", "cleared"],
     popoutLayout: ["regular", "compact"], popoutSize: ["small", "medium", "large"], popoutAutoHideTabSize: ["small", "medium", "large"], accentColour: ["coral", "orange", "pink", "miku", "green", "cappuccino"], uiScale: ["small", "medium", "large", "extra-large"],
   };
   if (key === "popoutDockMonitor") return (/^(current|display:\d+)$/.test(raw) ? raw : DEFAULT_SETTINGS[key]) as FocusSettings[K];
@@ -246,10 +251,31 @@ export function normalizeLegacyRevealShortcut(value: string): string {
   return /^(?:(?:Ctrl|Alt|Shift)\+)*F(?:[1-9]|1[0-2])$/.test(value) ? DEFAULT_SETTINGS.popoutRevealShortcut : value.replace(/\+`$/, "+Backquote");
 }
 
+/** Defaults are scoped to the current active Academic Year; history is untouched. */
+export async function reconcileDefaultSubject(database: FocusDatabase = db) {
+  await database.transaction("rw", database.settings, database.subjects, database.academicYears, async () => {
+    const configured = (await database.settings.get(SETTINGS_KEYS.defaultSubjectId))?.value;
+    if (!configured) return;
+    const currentYear = (await database.settings.get(CURRENT_YEAR_KEY))?.value;
+    const subject = await database.subjects.get(configured);
+    const year = currentYear ? await database.academicYears.get(currentYear) : undefined;
+    if (!subject || subject.archived || subject.academicYearId !== currentYear || !year || year.archived) {
+      await database.settings.bulkPut([{ key: SETTINGS_KEYS.defaultSubjectId, value: "" }, { key: SETTINGS_KEYS.subjectPickerMode, value: "remember" }]);
+    }
+  });
+}
+
 export async function loadSettings(database: FocusDatabase = db, migrate = true): Promise<FocusSettings> {
+  if (migrate) await reconcileDefaultSubject(database);
   if (migrate) await database.transaction("rw", database.settings, async () => {
     const row = await database.settings.get(SETTINGS_KEYS.popoutRevealShortcut);
-    if (row && normalizeLegacyRevealShortcut(row.value) !== row.value) await database.settings.put({ ...row, value: normalizeLegacyRevealShortcut(row.value) });
+    const intent = await database.settings.get(SETTINGS_KEYS.popoutRevealShortcutIntent);
+    const normalized = row ? normalizeLegacyRevealShortcut(row.value) : DEFAULT_SETTINGS.popoutRevealShortcut;
+    // Older releases did not record intent. Treat their old default as untouched;
+    // preserve all other supported combinations and deliberately cleared values.
+    const value = !intent && normalized === "Alt+Backquote" ? DEFAULT_SETTINGS.popoutRevealShortcut : normalized;
+    if (row && value !== row.value) await database.settings.put({ ...row, value });
+    if (!intent) await database.settings.put({ key: SETTINGS_KEYS.popoutRevealShortcutIntent, value: value === "" ? "cleared" : !row || value === DEFAULT_SETTINGS.popoutRevealShortcut ? "default" : "custom" });
   });
   const rows = new Map((await database.settings.toArray()).map((row) => [row.key, row.value]));
   const settings = Object.fromEntries((Object.keys(DEFAULT_SETTINGS) as (keyof FocusSettings)[]).map((key) => [key, decode(key, rows.get(SETTINGS_KEYS[key]))])) as FocusSettings;
@@ -260,12 +286,15 @@ export async function loadSettings(database: FocusDatabase = db, migrate = true)
 
 export async function saveSetting<K extends keyof FocusSettings>(key: K, value: FocusSettings[K], database: FocusDatabase = db) {
   const normalized = key === "dailyGoalSeconds" || key === "weeklyGoalSeconds" ? normalizeGoalSeconds(value, Number(DEFAULT_SETTINGS[key]), GOAL_MAX_HOURS[key as keyof typeof GOAL_MAX_HOURS]) : value;
-  await database.settings.put({ key: SETTINGS_KEYS[key], value: String(normalized) });
+  if (key === "popoutRevealShortcut") {
+    await database.settings.bulkPut([{ key: SETTINGS_KEYS[key], value: String(normalized) }, { key: SETTINGS_KEYS.popoutRevealShortcutIntent, value: normalized === "" ? "cleared" : "custom" }]);
+  } else await database.settings.put({ key: SETTINGS_KEYS[key], value: String(normalized) });
 }
 
 export async function restoreSettingDefaults(keys: (keyof FocusSettings)[], database: FocusDatabase = db) {
   await database.transaction("rw", database.settings, async () => {
     await database.settings.bulkDelete(keys.map((key) => SETTINGS_KEYS[key]));
+    if (keys.includes("popoutRevealShortcut")) await database.settings.delete(SETTINGS_KEYS.popoutRevealShortcutIntent);
   });
 }
 

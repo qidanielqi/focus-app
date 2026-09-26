@@ -1,3 +1,4 @@
+import { TimerProvider } from "./hooks/TimerContext";
 import { reconcileAutoHideSetting, revealTimerFromShortcut } from "./native";
 import { registerRevealShortcut } from "./shortcuts";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
@@ -85,7 +86,7 @@ export default function App() {
   if (isPopout) return <PopoutTimer />;
 
   return (
-    <div className={`app-shell ${collapsed ? "app-shell--collapsed" : ""}`} data-accent={settings.accentColour} data-theme={settings.theme} data-scale={settings.uiScale}>
+    <TimerProvider><div className={`app-shell ${collapsed ? "app-shell--collapsed" : ""}`} data-accent={settings.accentColour} data-theme={settings.theme} data-scale={settings.uiScale}>
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} active={page} onNavigate={setPage} />
       <UpdatePrompt ready={loaded} />
       <ToastHost />
@@ -99,6 +100,6 @@ export default function App() {
       {!['Timer', 'Analytics', 'Academic Years', 'Subjects', 'History', 'Import / Export', 'Settings'].includes(page) && <main className="page"><div className="empty-state"><h1>{t(page)}</h1><p>{t("Coming in a later milestone.")}</p></div></main>}
       {closeWarning && <div className="modal-backdrop"><section className="modal" role="dialog" aria-modal="true"><h2>{t("Close Focus while a timer is active?")}</h2><p>{t("The timer will be recovered the next time Focus opens. No Session will be finalized by closing the app.")}</p><div className="modal-actions"><button onClick={() => setCloseWarning(false)}>{t("Cancel")}</button><button className="danger-action" onClick={() => void invoke("close_main_window")}>{t("Close Focus")}</button></div></section></div>}
       {secondInstanceWarning && <div className="modal-backdrop"><section className="modal" role="alertdialog" aria-modal="true"><h2>{t("Focus is already running")}</h2><p>{t("The existing Focus window has been brought to the front.")}</p><div className="modal-actions"><button className="primary-action" onClick={() => setSecondInstanceWarning(false)}>{t("OK")}</button></div></section></div>}
-    </div>
+    </div></TimerProvider>
   );
 }

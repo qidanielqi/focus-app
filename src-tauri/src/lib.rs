@@ -521,7 +521,12 @@ fn is_main_fullscreen(app: tauri::AppHandle) -> Result<bool, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Webviews may invoke startup commands before the application setup callback.
+    // Register this plugin with the builder so its state exists before any window loads.
+    #[cfg(not(target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    builder
         .manage(popout_lifecycle::PopoutLifecycle::default())
         .manage(reveal_shortcut::RevealShortcut::default())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -548,8 +553,6 @@ pub fn run() {
                 // Signature verification uses only the public key embedded in tauri.conf.json.
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
-                #[cfg(not(target_os = "linux"))]
-                app.handle().plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
                 #[cfg(target_os = "linux")]
                 if supports_window_positioning() {
                     // Missing X11 hotkey support must not prevent normal app use.

@@ -1,6 +1,18 @@
 import en from "./en";
 
 const zhCN: Record<keyof typeof en, string> = {
+  "More start options": "更多开始选项",
+  "Start stopwatch": "开始秒表",
+  "Timer finished while Focus was closed": "Focus 关闭期间计时器已结束",
+  "Your {{subject}} timer finished at {{time}}.": "你的 {{subject}} 计时器已于 {{time}} 结束。",
+
+  "Unable to register the Reveal shortcut. Try another combination.": "无法注册显示快捷键。请尝试其他组合。",
+  "Details": "详情",
+
+  "Check for updates on launch": "启动时检查更新",
+  "Don't show again": "不再显示",
+  "Unable to save update preference. Try again.": "无法保存更新偏好设置。请重试。",
+
   "Timer": "计时器",
   "Analytics": "数据分析",
   "History": "历史记录",
@@ -98,8 +110,6 @@ const zhCN: Record<keyof typeof en, string> = {
   "Open popout automatically when a timer starts": "开始计时时自动打开悬浮窗",
   "Open popout automatically": "自动打开悬浮窗",
   "Show popout in taskbar": "在任务栏显示悬浮窗",
-  "Close popout when timer finishes": "计时结束时关闭悬浮窗",
-  "Close popout on completion": "完成时关闭悬浮窗",
   "Transparency": "透明度",
   "Corner docking": "角落停靠",
   "Dock the popout to a screen corner, with optional edge auto-hide.": "将悬浮窗停靠到屏幕角落，并可选择边缘自动隐藏。",

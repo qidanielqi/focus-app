@@ -1,3 +1,4 @@
+import { nextSubjectColor } from "../subjectColors";
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Archive, CalendarDays, Check, Lock, LockOpen, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
@@ -12,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { localeCode } from "../i18n";
 import { durationParts, formatClockDuration, inferDurationMode, normalizeDurationParts, sessionSpanSeconds, type DurationMode } from "../sessionDuration";
 
-const COLORS = ["#4da3ff", "#ff4d57", "#ffad3b", "#4dd39a", "#a879ff", "#ff7eb6"];
+
 const activeTimerRelationship = () => {
   try {
     const timer = JSON.parse(localStorage.getItem("focus.activeTimer") ?? "null");
@@ -217,7 +218,7 @@ export function SubjectsPage() {
       id: editing?.id ?? makeId(),
       academicYearId,
       name,
-      color: editing?.color ?? COLORS[subjects.length % COLORS.length],
+      color: editing?.color ?? nextSubjectColor(subjects, academicYearId),
       archived: editing?.archived ?? false,
     });
     setEditing(undefined);
@@ -339,9 +340,9 @@ const durationInputFields = (seconds: number) => {
   return { hours: String(parts.hours).padStart(2, "0"), minutes: String(parts.minutes).padStart(2, "0") };
 };
 
-function SessionEditor({ session, years, subjects, onClose }: { session: FocusSession | null; years: AcademicYear[]; subjects: Subject[]; onClose: () => void }) {
+function SessionEditor({ session, years, subjects, currentYearId, onClose }: { currentYearId: string; session: FocusSession | null; years: AcademicYear[]; subjects: Subject[]; onClose: () => void }) {
   const { t } = useTranslation();
-  const initialYearId = session?.academicYearId ?? years.find((year) => !year.archived)?.id ?? years[0]?.id ?? "";
+  const initialYearId = session?.academicYearId ?? currentYearId;
   const initialSubjectId = session?.subjectId ?? subjects.find((subject) => subject.academicYearId === initialYearId && !subject.archived)?.id ?? "";
   const [openedAt] = useState(() => Date.now());
   const initialEnd = session?.endTime ?? openedAt;
@@ -359,7 +360,8 @@ function SessionEditor({ session, years, subjects, onClose }: { session: FocusSe
   const [note, setNote] = useState(session?.note ?? "");
   const [relockPending, setRelockPending] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const availableSubjects = subjects.filter((subject) => subject.academicYearId === academicYearId);
+  const availableSubjects = subjects.filter((subject) => subject.academicYearId === academicYearId && (session || !subject.archived));
+  useEffect(() => { if (!session && academicYearId !== currentYearId) { setAcademicYearId(currentYearId); setSubjectId(""); } }, [session, academicYearId, currentYearId]);
   const startTime = new Date(`${date}T${start}`).getTime();
   const endTime = new Date(`${date}T${end}`).getTime();
   const validSpan = Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime;
@@ -413,7 +415,7 @@ function SessionEditor({ session, years, subjects, onClose }: { session: FocusSe
         {t("Academic Year")}
         <select value={academicYearId} onChange={(event) => { const next = event.target.value; setAcademicYearId(next); if (!subjects.some((subject) => subject.id === subjectId && subject.academicYearId === next)) setSubjectId(""); }} required autoFocus>
           <option value="">{t("Choose Academic Year")}</option>
-          {years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}
+          {years.filter(year => session || (!year.archived && year.id === currentYearId)).map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}
         </select>
       </label>
       <label>
@@ -456,6 +458,7 @@ function SessionEditor({ session, years, subjects, onClose }: { session: FocusSe
 }
 
 export function HistoryPage() {
+  const currentId = useLiveQuery(async () => (await db.settings.get(CURRENT_YEAR_KEY))?.value ?? "", []) ?? "";
   const { t } = useTranslation();
   const years = useLiveQuery(() => db.academicYears.toArray(), []) ?? [];
   const subjects = useLiveQuery(() => db.subjects.toArray(), []) ?? [];
@@ -599,7 +602,7 @@ export function HistoryPage() {
       </div>
       {editing !== undefined && (
         <Modal title={t(editing ? "Edit Session" : "Add Session")} onClose={() => setEditing(undefined)}>
-          <SessionEditor session={editing} years={years} subjects={subjects} onClose={() => setEditing(undefined)} />
+          <SessionEditor session={editing} years={years} subjects={subjects} currentYearId={currentId} onClose={() => setEditing(undefined)} />
         </Modal>
       )}
       {deleting && <DeleteConfirmation title={t("Delete Session?")} onCancel={() => setDeleting(undefined)} onDelete={async () => { await deleteSession(deleting.id); setDeleting(undefined); }}>{t("This permanently removes this Session.")}</DeleteConfirmation>}

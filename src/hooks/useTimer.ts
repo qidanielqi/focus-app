@@ -1,7 +1,8 @@
+import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { db } from "../db";
 import type { AcademicYear, Subject } from "../types";
-import { ACTIVE_TIMER_STORAGE_KEY, closeRunningInterval, completedSession, extendTimerState, finishTimerState, focusedSecondsAt, idleTimerState, initialTimerState, normalizeTimerState, startTimerState, type TimerState } from "../timerState";
+import { ACTIVE_TIMER_STORAGE_KEY, closeRunningInterval, completedSession, extendTimerState, finishTimerState, focusedSecondsAt, idleTimerState, initialTimerState, normalizeTimerState, startTimerState, startStopwatchState, restoreExpiredTimer, type TimerState } from "../timerState";
 import { handleTimerCompletion } from "../timerCompletion";
 import { saveFocusSession } from "../saveFocusSession";
 import { showToast } from "../toasts";
@@ -18,6 +19,7 @@ function readStored(): TimerState {
 }
 
 function stateAt(state: TimerState, now = Date.now()) {
+  if (state.mode === "stopwatch") return { ...state, remainingSeconds: focusedSecondsAt(state, now) };
   if (!state.running || state.paused || state.finished || !state.targetEnd) return state;
   return { ...state, remainingSeconds: Math.max(0, Math.ceil((state.targetEnd - now) / 1000)) };
 }
@@ -37,6 +39,7 @@ export function useTimer() {
   const noteTimerRef = useRef(0);
   const startupHandledRef = useRef(false);
   const retryLiveRef = useRef(false);
+  const currentSubject = useLiveQuery(() => state.running && state.subjectId ? db.subjects.get(state.subjectId) : undefined, [state.running, state.subjectId]);
 
   const persist = useCallback((next: TimerState) => {
     if (next.running) localStorage.setItem(ACTIVE_TIMER_STORAGE_KEY, JSON.stringify(next));
@@ -50,6 +53,10 @@ export function useTimer() {
     channelRef.current?.postMessage(next);
   }, [persist]);
 
+  useEffect(() => {
+    if (currentSubject && stateRef.current.subjectId === currentSubject.id && stateRef.current.subjectColor !== currentSubject.color) commit({ ...stateRef.current, subjectColor: currentSubject.color });
+  }, [currentSubject, commit]);
+
   const saveAndClear = useCallback(async (snapshot: TimerState, endTime: number, live = false) => {
     const session = completedSession(snapshot, endTime);
     try {
@@ -61,7 +68,7 @@ export function useTimer() {
       return true;
     } catch {
       retryLiveRef.current = live;
-      const preserved = { ...snapshot, saveFailed: true, finished: true, finishedAt: endTime, targetEnd: null, remainingSeconds: 0 };
+      const preserved = { ...closeRunningInterval(snapshot, endTime), saveFailed: true, finished: true, finishedAt: endTime, targetEnd: null, remainingSeconds: 0 };
       setSaveError(true); setRecovery("save-failed"); commit(preserved);
       return false;
     }
@@ -85,27 +92,26 @@ export function useTimer() {
       const [subject, year] = await Promise.all([db.subjects.get(stored.subjectId), db.academicYears.get(stored.academicYearId)]);
       if (!subject || subject.archived || !year || year.archived || subject.academicYearId !== year.id) { setRecovery("relationship"); return; }
       if (stored.paused) { setRecovery(null); return; }
-      const intendedEnd = stored.finishedAt ?? stored.targetEnd;
-      if (stored.finished || (intendedEnd !== null && intendedEnd <= Date.now())) {
-        const completed = finishTimerState(stored, intendedEnd ?? Date.now());
-        if (await saveAndClear(completed, intendedEnd ?? Date.now())) await handleTimerCompletion(completed);
-        return;
-      }
+      const restored = restoreExpiredTimer(stored);
+      if (restored.finished) { commit(restored); setRecovery(null); return; }
       setRecovery("running");
     })();
   }, [commit, firstMainMount, saveAndClear]);
 
   const reconcile = useCallback(() => {
     const current = stateRef.current;
-    if (recovery || !current.running || current.paused || current.finished || !current.targetEnd) return;
+    if (recovery || !current.running || current.paused || current.finished) return;
+    if (current.mode === "stopwatch") { setState(stateAt(current)); return; }
+    if (!current.targetEnd) return;
     const now = Date.now();
     const remaining = Math.max(0, Math.ceil((current.targetEnd - now) / 1000));
     if (remaining > 0) { setState((value) => ({ ...value, remainingSeconds: remaining })); return; }
     if (completingRef.current) return;
     completingRef.current = true;
     const completed = finishTimerState(current, current.targetEnd);
+    if (isPopout) { setState(completed); completingRef.current = false; return; }
     commit(completed);
-    const effects = isPopout ? Promise.resolve() : handleTimerCompletion(completed);
+    const effects = handleTimerCompletion(completed);
     void effects.finally(() => { completingRef.current = false; });
   }, [commit, isPopout, recovery]);
 
@@ -138,10 +144,13 @@ export function useTimer() {
 
   const start = useCallback((seconds: number, subject: Subject, year: AcademicYear) => { if (seconds > 0 && Number.isFinite(seconds)) commit(startTimerState(stateRef.current, seconds, subject, year)); }, [commit]);
 
+  const startStopwatch = useCallback((subject: Subject, year: AcademicYear) => commit(startStopwatchState(stateRef.current, subject, year)), [commit]);
+  const dismissExpiredNotice = useCallback(() => commit({ ...stateRef.current, expiredNoticeDismissed: true }), [commit]);
+
   const pause = useCallback(() => {
     const current = stateAt(stateRef.current), now = Date.now();
     if (!current.running || current.finished) return;
-    if (current.paused) commit({ ...current, paused: false, runningSince: now, targetEnd: now + current.remainingSeconds * 1000, checkpointAt: now, checkpointRemainingSeconds: current.remainingSeconds, checkpointFocusedSeconds: current.accumulatedFocusedSeconds, checkpointIntervals: current.focusIntervals });
+    if (current.paused) commit({ ...current, paused: false, runningSince: now, targetEnd: current.mode === "stopwatch" ? null : now + current.remainingSeconds * 1000, checkpointAt: now, checkpointRemainingSeconds: current.remainingSeconds, checkpointFocusedSeconds: current.accumulatedFocusedSeconds, checkpointIntervals: current.focusIntervals });
     else commit({ ...closeRunningInterval(current, now), paused: true, targetEnd: null });
   }, [commit]);
 
@@ -170,13 +179,13 @@ export function useTimer() {
   const continueRecovery = useCallback(() => { const next = stateAt(stateRef.current); setRecovery(null); commit(next); }, [commit]);
   const resumeCheckpoint = useCallback(() => {
     const current = stateRef.current, now = Date.now();
-    const next = { ...current, paused: false, finished: false, finishedAt: null, remainingSeconds: current.checkpointRemainingSeconds, accumulatedFocusedSeconds: current.checkpointFocusedSeconds, focusIntervals: current.checkpointIntervals, runningSince: now, targetEnd: now + current.checkpointRemainingSeconds * 1000, checkpointAt: now };
+    const next = { ...current, paused: false, finished: false, finishedAt: null, remainingSeconds: current.checkpointRemainingSeconds, accumulatedFocusedSeconds: current.checkpointFocusedSeconds, focusIntervals: current.checkpointIntervals, runningSince: now, targetEnd: current.mode === "stopwatch" ? null : now + current.checkpointRemainingSeconds * 1000, checkpointAt: now };
     setRecovery(null); commit(next);
   }, [commit]);
   const discard = useCallback(() => { setRecovery(null); setSaveError(false); commit(idleTimerState(stateRef.current)); }, [commit]);
   const reassign = useCallback((subject: Subject, year: AcademicYear) => {
     const next = { ...stateRef.current, subjectId: subject.id, subject: subject.name, subjectColor: subject.color, academicYearId: year.id, academicYearName: year.name };
-    setRecovery(null); commit(stateAt(next));
+    setRecovery(null); commit(restoreExpiredTimer(stateAt(next)));
   }, [commit]);
 
   const display = useMemo(() => {
@@ -184,5 +193,5 @@ export function useTimer() {
     return { hours: Math.floor(total / 3600), minutes: Math.floor((total % 3600) / 60), seconds: total % 60 };
   }, [state.remainingSeconds]);
 
-  return { state, display, start, pause, stop, finish, extend, setNote, recovery, saveError, retrySave, continueRecovery, resumeCheckpoint, discard, reassign };
+  return { state, display, start, startStopwatch, dismissExpiredNotice, pause, stop, finish, extend, setNote, recovery, saveError, retrySave, continueRecovery, resumeCheckpoint, discard, reassign };
 }

@@ -5,6 +5,17 @@ use tauri::Manager;
 static MINIMUM_WIDTH: AtomicU32 = AtomicU32::new(420);
 
 #[cfg(windows)]
+fn revalidate_restored_width(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if window.is_minimized().map_err(|e| e.to_string())? || window.is_maximized().map_err(|e| e.to_string())? || window.is_fullscreen().map_err(|e| e.to_string())? { return Ok(()); }
+    let minimum = MINIMUM_WIDTH.load(Ordering::Relaxed) as f64;
+    let size = window.inner_size().map_err(|e| e.to_string())?.to_logical::<f64>(window.scale_factor().map_err(|e| e.to_string())?);
+    if size.width < minimum {
+        window.set_size(tauri::LogicalSize::new(minimum, size.height)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
 unsafe extern "system" fn minimum_size_proc(
     hwnd: windows_sys::Win32::Foundation::HWND,
     message: u32,
@@ -35,6 +46,16 @@ pub fn install(_app: &tauri::AppHandle) -> Result<(), String> {
         if unsafe { windows_sys::Win32::UI::Shell::SetWindowSubclass(hwnd.0 as _, Some(minimum_size_proc), 1, 0) } == 0 {
             return Err("Unable to install main window constraints".into());
         }
+        let restored_window = window.clone();
+        window.on_window_event(move |event| {
+            if matches!(event, tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. }) {
+                // Re-read native bounds after restore/Snap/DPI processing completes.
+                // Resizing emits another event, which becomes a no-op at the minimum.
+                let window = restored_window.clone();
+                let dispatcher = window.clone();
+                let _ = dispatcher.run_on_main_thread(move || { let _ = revalidate_restored_width(&window); });
+            }
+        });
     }
     Ok(())
 }

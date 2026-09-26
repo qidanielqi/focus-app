@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FocusDatabase } from "./db";
 import { filterSessions } from "./analytics/analytics";
 import { createDevelopmentAnalyticsDataset } from "./analytics/developmentDataset";
-import { completedSession, currentStreak, extendTimerState, initialTimerState, LAST_TIMER_DURATION_KEY, localDateInputValue, startTimerState, todaySummary } from "./timerState";
+import { closeRunningInterval, focusedSecondsAt, idleTimerState, normalizeTimerState, restoreExpiredTimer, startStopwatchState, completedSession, currentStreak, extendTimerState, initialTimerState, LAST_TIMER_DURATION_KEY, localDateInputValue, startTimerState, todaySummary } from "./timerState";
 import { EXTEND_PRESETS_MINUTES } from "./components/TimerExtendMenu";
 import { normaliseDuration } from "./settings";
 
@@ -83,4 +83,28 @@ describe("timer persistence and summaries", () => {
     createDevelopmentAnalyticsDataset(100);
     expect(await testDb.sessions.count()).toBe(0);
   });
+});
+
+
+it("restores expiry at the deadline and excludes the closed-app gap on extension", () => {
+  const started = startTimerState(initialTimerState, 300, subject, year, 1000, "expired");
+  const restored = restoreExpiredTimer(started, 900000);
+  expect(restored).toMatchObject({ running: true, finished: true, finishedAt: 301000, remainingSeconds: 0, accumulatedFocusedSeconds: 300, expiredWhileClosed: true });
+  const acknowledged = { ...restored, expiredNoticeDismissed: true };
+  expect(restoreExpiredTimer(normalizeTimerState(JSON.parse(JSON.stringify(acknowledged))), 1000000)).toEqual(acknowledged);
+  const extended = extendTimerState(restored, 60, 900000);
+  expect(completedSession(extended, 960000)).toMatchObject({ id: "expired", focusedDurationSeconds: 360, focusIntervals: [{ startTime: 1000, endTime: 301000 }, { startTime: 900000, endTime: 960000 }] });
+});
+
+it("shares Stopwatch persistence and completion while excluding paused time", () => {
+  const started = startStopwatchState(initialTimerState, subject, year, 1000, "stopwatch");
+  expect(started).toMatchObject({ mode: "stopwatch", targetEnd: null, remainingSeconds: 0 });
+  expect(focusedSecondsAt(started, 91000)).toBe(90);
+  const paused = { ...closeRunningInterval(started, 91000), paused: true };
+  expect(focusedSecondsAt(paused, 301000)).toBe(90);
+  expect(restoreExpiredTimer(paused, 301000)).toBe(paused);
+  const resumed = normalizeTimerState(JSON.parse(JSON.stringify({ ...paused, paused: false, runningSince: 301000 })));
+  expect(extendTimerState(resumed, 300, 310000)).toBe(resumed);
+  expect(completedSession(resumed, 361000)).toMatchObject({ focusedDurationSeconds: 150, focusIntervals: [{ startTime: 1000, endTime: 91000 }, { startTime: 301000, endTime: 361000 }] });
+  expect(idleTimerState(resumed)).toMatchObject({ mode: "timer", running: false, sessionId: null, remainingSeconds: initialTimerState.plannedDurationSeconds });
 });

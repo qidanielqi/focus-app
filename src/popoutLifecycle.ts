@@ -4,13 +4,11 @@ import { ACTIVE_TIMER_STORAGE_KEY, type TimerState } from "./timerState";
 export const TIMER_STATE_CHANGED = "focus:timer-state-changed";
 export const POPOUT_CLOSED = "focus:popout-closed";
 
-/** Finished-but-not-yet-saved timers are recoverable data, not active popouts. */
+/** Finished Timers remain extendable until the Session is finalized or voided. */
 export function activePopoutSession() {
   try {
     const timer = JSON.parse(localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY) ?? "null") as TimerState | null;
-    if (!timer?.running || !timer.sessionId || timer.finished || timer.saveFailed) return null;
-    if (timer.paused) return { sessionId: timer.sessionId, deadline: null };
-    if (typeof timer.targetEnd === "number" && Number.isFinite(timer.targetEnd) && timer.targetEnd > Date.now()) return { sessionId: timer.sessionId, deadline: Math.floor(timer.targetEnd) };
+    if (timer?.running && timer.sessionId) return { sessionId: timer.sessionId, deadline: null };
   } catch { /* Invalid recovery state must never create an empty window. */ }
   return null;
 }

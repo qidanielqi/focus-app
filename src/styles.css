@@ -911,3 +911,28 @@ fieldset.setting-control { border: 0; padding: 0; margin: 0; min-width: 0; }
 .update-notes ul { list-style: disc; padding-left: 20px; }
 .update-notes ol { list-style: decimal; padding-left: 20px; }
 .update-notes a { color: var(--text); text-decoration: underline; }
+
+.update-launch-preference { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--text); }
+/* Controls occupy space only while visible; native window bounds stay fixed. */
+.popout-root[data-layout="compact"] .popout-content { padding-right: 104px; transition: padding-right 180ms ease; }
+.popout-root[data-layout="compact"].popout-root--hover-controls:not(:hover):not(:focus-within) .popout-content { padding-right: 12px; transition-delay: calc(var(--controls-hide-delay,1s) + 150ms); }
+.popout-root[data-layout="compact"] .popout-timer-block { transform: none; min-width: 0; overflow: hidden; }
+.popout-root[data-layout="compact"] .popout-time { gap: 0; font-size: min(48cqh, calc(150cqw / var(--timer-characters,8))); }
+.popout-root[data-layout="compact"] .popout-actions { transition: opacity 100ms ease 180ms; }
+@media (prefers-reduced-motion: reduce) { .popout-root[data-layout="compact"] .popout-content { transition-duration: 0ms; } }
+
+.popout-root[data-layout="compact"].popout-root--hover-controls:hover .popout-actions,
+.popout-root[data-layout="compact"].popout-root--hover-controls:focus-within .popout-actions { transition-delay: 180ms; }
+
+.start-split { position: relative; gap: 0; padding: 0; }
+.start-split > button { height: 100%; border: 0; color: inherit; background: transparent; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: inherit; }
+.start-split .start-main { flex: 1; min-width: 0; border-radius: 10px 0 0 10px; }
+.start-split .start-chevron { width: 42px; flex: 0 0 42px; border-left: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 0 10px 10px 0; }
+.start-split > button:hover:not(:disabled) { background: color-mix(in srgb, black 9%, transparent); }
+.start-split > button:active:not(:disabled) { background: color-mix(in srgb, black 17%, transparent); }
+.start-split > button:disabled { opacity: .45; cursor: not-allowed; }
+.start-mode-menu { position: absolute; right: 0; bottom: calc(100% + 8px); width: 220px; padding: 5px; background: var(--surface-raised); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); z-index: 30; }
+.start-mode-menu button { width: 100%; display: flex; align-items: center; gap: 8px; padding: 10px; border: 0; background: transparent; color: inherit; }
+.start-mode-menu button:hover, .start-mode-menu button:focus-visible { background: var(--surface-control); }
+.expired-timer-notice { position: relative; display: grid; gap: 4px; margin-bottom: 16px; padding: 12px 34px 12px 14px; background: var(--surface-raised); border: 1px solid var(--border-soft); border-radius: 8px; font-size: 12px; }
+.expired-timer-notice button { position: absolute; top: 4px; right: 6px; background: none; border: 0; color: var(--text-muted); font-size: 20px; }

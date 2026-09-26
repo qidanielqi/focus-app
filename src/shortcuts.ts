@@ -31,14 +31,14 @@ export function listenForShortcut(onCapture: (shortcut: string) => void, onCance
   target.addEventListener("keydown", keydown, { capture: true });
   return stop;
 }
-let registrationFailed = false;
+let registrationFailure = "";
 let activeShortcut: string | undefined;
 const registrationListeners = new Set<() => void>();
 export const shortcutRegistration = {
-  getSnapshot: () => registrationFailed,
+  getSnapshot: () => registrationFailure,
   subscribe: (listener: () => void) => { registrationListeners.add(listener); return () => { registrationListeners.delete(listener); }; },
 };
-function reportRegistration(failed: boolean) { registrationFailed = failed; registrationListeners.forEach(listener => listener()); }
+function reportRegistration(failure: string) { registrationFailure = failure; registrationListeners.forEach(listener => listener()); }
 let operation = Promise.resolve();
 /** Serialize startup and recorder changes; persist only a registered combination. */
 export function registerRevealShortcut(shortcut: string, persist: boolean | (() => Promise<void>) = false) {
@@ -46,7 +46,8 @@ export function registerRevealShortcut(shortcut: string, persist: boolean | (() 
     if (!isRevealShortcut(shortcut)) throw new Error("Invalid reveal shortcut.");
     if (!isTauri()) throw new Error("Global shortcuts require the desktop app.");
     const previous = (await loadSettings()).popoutRevealShortcut;
-    await invoke("set_reveal_shortcut", { shortcut });
+    if (shortcut && await invoke<boolean>("reveal_shortcut_available") === false) throw new Error("Global reveal shortcuts are unavailable on this device.");
+    if (activeShortcut !== shortcut) await invoke("set_reveal_shortcut", { shortcut });
     activeShortcut = shortcut;
     if (persist) {
       try { await (typeof persist === "function" ? persist() : saveSetting("popoutRevealShortcut", shortcut)); }
@@ -57,7 +58,7 @@ export function registerRevealShortcut(shortcut: string, persist: boolean | (() 
       }
     }
   });
-  const reported = next.then(() => { reportRegistration(false); }, error => { reportRegistration(activeShortcut === undefined); throw error; });
+  const reported = next.then(() => { reportRegistration(""); }, error => { reportRegistration(activeShortcut === undefined ? String(error) : ""); throw error; });
   operation = reported;
   return reported;
 }

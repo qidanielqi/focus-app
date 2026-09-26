@@ -1,4 +1,16 @@
 const en = {
+  "More start options": "More start options",
+  "Start stopwatch": "Start stopwatch",
+  "Timer finished while Focus was closed": "Timer finished while Focus was closed",
+  "Your {{subject}} timer finished at {{time}}.": "Your {{subject}} timer finished at {{time}}.",
+
+  "Unable to register the Reveal shortcut. Try another combination.": "Unable to register the Reveal shortcut. Try another combination.",
+  "Details": "Details",
+
+  "Check for updates on launch": "Check for updates on launch",
+  "Don't show again": "Don't show again",
+  "Unable to save update preference. Try again.": "Unable to save update preference. Try again.",
+
   "Timer": "Timer",
   "Analytics": "Analytics",
   "History": "History",
@@ -96,8 +108,6 @@ const en = {
   "Open popout automatically when a timer starts": "Open popout automatically when a timer starts",
   "Open popout automatically": "Open popout automatically",
   "Show popout in taskbar": "Show popout in taskbar",
-  "Close popout when timer finishes": "Close popout when timer finishes",
-  "Close popout on completion": "Close popout on completion",
   "Transparency": "Transparency",
   "Corner docking": "Corner docking",
   "Dock the popout to a screen corner, with optional edge auto-hide.": "Dock the popout to a screen corner, with optional edge auto-hide.",

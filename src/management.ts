@@ -80,6 +80,8 @@ export async function updateSessionDetails(id: string, input: { academicYearId: 
       endTime: input.endTime,
       focusedDurationSeconds,
       durationMode: input.durationMode,
+      // Recorded intervals describe the original timer, not manually edited timing.
+      focusIntervals: session.startTime === input.startTime && session.endTime === input.endTime && session.focusedDurationSeconds === focusedDurationSeconds ? session.focusIntervals : undefined,
       note: input.note?.trim() || undefined,
     });
   });

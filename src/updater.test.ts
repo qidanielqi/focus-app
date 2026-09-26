@@ -14,6 +14,32 @@ function fixture() {
 }
 
 describe("shared updater lifecycle", () => {
+  it("honors the persisted startup preference without blocking manual checks", async () => {
+    const { deps } = fixture();
+    const controller = createUpdateController({ ...deps, startupEnabled: async () => false });
+    await controller.start();
+    expect(deps.check).not.toHaveBeenCalled();
+    await controller.check(true);
+    expect(deps.check).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot().automaticPrompt).toBe(false);
+  });
+  it("Don't show again persists opt-out, while Later only dismisses", async () => {
+    const { deps } = fixture();
+    const disableStartup = vi.fn(async () => {});
+    const controller = createUpdateController({ ...deps, disableStartup });
+    await controller.start(); controller.later();
+    expect(disableStartup).not.toHaveBeenCalled();
+    await controller.check(); await controller.dontShowAgain();
+    expect(disableStartup).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot().promptOpen).toBe(false);
+  });
+  it("keeps the prompt open if saving the opt-out fails", async () => {
+    const { deps } = fixture();
+    const controller = createUpdateController({ ...deps, disableStartup: async () => { throw new Error("storage"); } });
+    await controller.start();
+    await expect(controller.dontShowAgain()).rejects.toThrow("storage");
+    expect(controller.getSnapshot().promptOpen).toBe(true);
+  });
   it("keeps confirmed missing manifests distinct and no-update checks successful", async () => {
     const { deps } = fixture();
     const controller = createUpdateController({ ...deps, check: async () => null });
@@ -25,8 +51,7 @@ describe("shared updater lifecycle", () => {
   });
   it("checks once at startup and never installs before confirmation", async () => {
     const { controller, deps, update } = fixture();
-    controller.start(); controller.start();
-    await controller.check();
+    await Promise.all([controller.start(), controller.start()]);
     expect(deps.check).toHaveBeenCalledTimes(1);
     expect(controller.getSnapshot()).toMatchObject({ phase: "available", promptOpen: true, currentVersion: "1.3.0", availableVersion: "1.3.1" });
     expect(update.downloadAndInstall).not.toHaveBeenCalled();

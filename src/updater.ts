@@ -1,3 +1,4 @@
+import { loadSettings, saveSetting } from "./settings";
 import { isTauri } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { type Update, type DownloadEvent } from "@tauri-apps/plugin-updater";
@@ -13,12 +14,13 @@ export type UpdateState = {
   availableVersion?: string;
   notes?: string;
   promptOpen: boolean;
+  automaticPrompt?: boolean;
   downloaded: number;
   contentLength?: number;
   error?: "check" | "install" | "restart";
   checkCategory?: UpdateCategory;
 };
-type Dependencies = { enabled: () => boolean; version: () => Promise<string>; check: (manual: boolean) => Promise<UpdateCandidate | null>; restart: () => Promise<void> };
+type Dependencies = { startupEnabled?: () => Promise<boolean>; disableStartup?: () => Promise<void>; enabled: () => boolean; version: () => Promise<string>; check: (manual: boolean) => Promise<UpdateCandidate | null>; restart: () => Promise<void> };
 
 /** One controller per main-window lifetime: Settings, About and startup share requests and dismissals. */
 export function createUpdateController(deps: Dependencies) {
@@ -43,7 +45,7 @@ export function createUpdateController(deps: Dependencies) {
         const next = await deps.check(manualRequested);
         if (candidate && candidate !== next) await candidate.close().catch(() => undefined);
         candidate = next;
-        if (next) set({ phase: "available", availableVersion: next.version, notes: next.body, promptOpen: manualRequested || !dismissed.has(next.version) });
+        if (next) set({ phase: "available", availableVersion: next.version, notes: next.body, automaticPrompt: !manualRequested, promptOpen: manualRequested || !dismissed.has(next.version) });
         else set({ phase: manualRequested ? "current" : "idle", availableVersion: undefined, notes: undefined, promptOpen: false });
       } catch (error) {
         // Offline startup is normal. Only explicit manual checks surface a non-destructive error.
@@ -60,7 +62,18 @@ export function createUpdateController(deps: Dependencies) {
     getSnapshot: () => state,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     check: runCheck,
-    start: () => { if (!started && deps.enabled()) { started = true; void runCheck(); } },
+    start: async () => {
+      if (started || !deps.enabled()) return;
+      started = true;
+      try { if (await (deps.startupEnabled?.() ?? Promise.resolve(true))) await runCheck(); }
+      catch { /* Preference storage unavailable: skip the automatic network check. */ }
+    },
+    dontShowAgain: async () => {
+      if (busy() || !state.automaticPrompt) return;
+      await deps.disableStartup?.();
+      if (candidate) dismissed.add(candidate.version);
+      set({ promptOpen: false });
+    },
     later: () => { if (busy()) return; if (candidate) dismissed.add(candidate.version); set({ promptOpen: false, error: undefined, phase: candidate ? "available" : "idle" }); },
     install: async () => {
       if (!candidate || busy() || inFlight || !state.promptOpen) return;
@@ -83,4 +96,4 @@ export function createUpdateController(deps: Dependencies) {
   };
 }
 
-export const updater = createUpdateController({ enabled: isTauri, version: getVersion, check: checkWithDiagnostics, restart: relaunch });
+export const updater = createUpdateController({ enabled: isTauri, version: getVersion, check: checkWithDiagnostics, restart: relaunch, startupEnabled: async () => (await loadSettings()).checkForUpdatesOnLaunch, disableStartup: () => saveSetting("checkForUpdatesOnLaunch", false) });

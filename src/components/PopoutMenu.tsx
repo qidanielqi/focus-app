@@ -38,13 +38,13 @@ export function PopoutMenu() {
   };
 
   return <main className="popout-menu-window" data-accent={settings.accentColour} data-theme={settings.theme}>
-    {view === "extend" ? <TimerExtendMenu onClose={close} onExtend={(seconds) => { timer.extend(seconds); close(); }}/> : view === "stop" || view === "void" ? <div className="popout-menu-confirm">
+    {view === "extend" && timer.state.mode !== "stopwatch" ? <TimerExtendMenu onClose={close} onExtend={(seconds) => { timer.extend(seconds); close(); }}/> : view === "stop" || view === "void" ? <div className="popout-menu-confirm">
       <strong>{t(view === "stop" ? "Stop timer?" : "Void this Session?")}</strong>
       <p>{t(view === "stop" ? "Elapsed focus time will be saved." : "The recorded study time will be discarded.")}</p>
       <button onClick={close}>{t("Cancel")}</button>
       <button onClick={() => { if (view === "stop") setView("void"); else { timer.discard(); close(); } }}>{t("Void Session")}</button>
       {view === "stop" && <button onClick={async () => { await timer.stop(); close(); }}>{t("Stop and save")}</button>}
-    </div> : view === "more" ? <>
+    </div> : view === "more" || view === "extend" ? <>
       <button onClick={async () => { const next = !settings.popoutAlwaysOnTop; await setSetting("popoutAlwaysOnTop", next); await invoke("set_timer_always_on_top", { enabled: next }); close(); }}>{t("Always on top")} <span>{t(settings.popoutAlwaysOnTop ? "On" : "Off")}</span></button>
       {docked && <button onClick={async () => {
         await setPopoutDocked(false);

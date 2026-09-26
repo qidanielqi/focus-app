@@ -1,6 +1,7 @@
+import { useSettings } from "../hooks/useSettings";
 import { meaningfulReleaseNotes } from "../releaseNotes";
 import { ReleaseNotes } from "./ReleaseNotes";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { localeCode } from "../i18n";
 import { updater, type UpdateState } from "../updater";
@@ -15,14 +16,16 @@ function statusKey(state: UpdateState) {
 }
 
 export function UpdateControls() {
+  const { settings, setSetting } = useSettings();
   const { t } = useTranslation();
   const state = useUpdater();
-  return <section className="update-controls"><div><strong>{t("Updates")}</strong><span>{t("Current version")}: {state.currentVersion}</span></div><button className="secondary-action" disabled={busy(state)} onClick={() => void updater.check(true)}>{t(state.phase === "checking" ? "Checking for updates…" : "Check for updates")}</button><p role="status">{statusKey(state) ? t(statusKey(state)) : "\u00a0"}</p></section>;
+  return <section className="update-controls"><div><strong>{t("Updates")}</strong><span>{t("Current version")}: {state.currentVersion}</span></div><button className="secondary-action" disabled={busy(state)} onClick={() => void updater.check(true)}>{t(state.phase === "checking" ? "Checking for updates…" : "Check for updates")}</button><label className="update-launch-preference"><input type="checkbox" checked={settings.checkForUpdatesOnLaunch} onChange={event => void setSetting("checkForUpdatesOnLaunch", event.target.checked)}/>{t("Check for updates on launch")}</label><p role="status">{statusKey(state) ? t(statusKey(state)) : "\u00a0"}</p></section>;
 }
 
 export function UpdatePrompt({ ready = true }: { ready?: boolean }) {
   const { t } = useTranslation();
   const state = useUpdater();
+  const [preferenceError, setPreferenceError] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (!ready) return;
@@ -45,6 +48,7 @@ export function UpdatePrompt({ ready = true }: { ready?: boolean }) {
     {notes ? <section className="update-notes" tabIndex={0} aria-label={t("What's new")}><h3>{t("What's new")}</h3><ReleaseNotes notes={notes}/></section> : <p>{t("A new version of Focus is ready to install.")}</p>}
     <p role="status">{state.phase === "available" ? "" : t(statusKey(state))}</p>
     {state.phase === "downloading" && <><progress aria-label={t("Downloading update…")} max={1} value={progress}/><small>{progress === undefined ? new Intl.NumberFormat(localeCode(), { style: "unit", unit: "megabyte", maximumFractionDigits: 1 }).format(state.downloaded / 1_000_000) : progress.toLocaleString(localeCode(), { style: "percent", maximumFractionDigits: 0 })}</small></>}
-    <div className="modal-actions"><button disabled={busy(state)} onClick={() => updater.later()}>{t("Later")}</button><button className="primary-action" disabled={busy(state)} onClick={() => void updater.install()}>{t(state.error === "restart" ? "Restart Focus" : "Update now")}</button></div>
+    {preferenceError && <p role="alert" className="field-error">{t("Unable to save update preference. Try again.")}</p>}
+    <div className="modal-actions">{state.automaticPrompt && <button disabled={busy(state)} onClick={() => { setPreferenceError(false); void updater.dontShowAgain().catch(() => setPreferenceError(true)); }}>{t("Don't show again")}</button>}<button disabled={busy(state)} onClick={() => updater.later()}>{t("Later")}</button><button className="primary-action" disabled={busy(state)} onClick={() => void updater.install()}>{t(state.error === "restart" ? "Restart Focus" : "Update now")}</button></div>
   </dialog>;
 }

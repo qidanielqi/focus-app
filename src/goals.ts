@@ -18,7 +18,13 @@ const overlapSeconds = (start: number, end: number, rangeStart: number, rangeEnd
 
 export function sessionFocusedSecondsInRange(session: FocusSession, rangeStart: number, rangeEnd: number) {
   if (session.archived) return 0;
-  if (session.focusIntervals?.length) return session.focusIntervals.reduce((sum, interval) => sum + overlapSeconds(interval.startTime, interval.endTime, rangeStart, rangeEnd), 0);
+  const intervals = session.focusIntervals;
+  // Older edited/imported Sessions can retain obsolete recorded intervals.
+  // Use exact pause-aware allocation only when it still matches canonical timing.
+  const recordedSeconds = intervals?.reduce((sum, interval) => sum + (interval.endTime - interval.startTime) / 1000, 0) ?? 0;
+  if (intervals?.length && Math.abs(recordedSeconds - session.focusedDurationSeconds) <= 0.5 && intervals.every(interval => interval.startTime >= session.startTime && interval.endTime <= session.endTime && interval.endTime >= interval.startTime)) {
+    return intervals.reduce((sum, interval) => sum + overlapSeconds(interval.startTime, interval.endTime, rangeStart, rangeEnd), 0);
+  }
   const wallSeconds = Math.max(0, (session.endTime - session.startTime) / 1000);
   if (!wallSeconds) return 0;
   return overlapSeconds(session.startTime, session.endTime, rangeStart, rangeEnd) * Math.min(1, session.focusedDurationSeconds / wallSeconds);

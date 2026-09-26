@@ -17,7 +17,7 @@ export async function createBackup(database: FocusDatabase = db): Promise<FocusB
     database.academicYears.toArray(), database.subjects.toArray(), database.sessions.toArray(), database.settings.toArray(),
     loadSettings(database),
   ]);
-  const settingsByKey = new Map(storedSettings.map((setting) => [setting.key, setting]));
+  const settingsByKey = new Map(storedSettings.filter(setting => setting.key !== "popoutCloseOnCompletion").map((setting) => [setting.key, setting]));
   for (const key of Object.keys(SETTINGS_KEYS) as (keyof FocusSettings)[]) {
     settingsByKey.set(SETTINGS_KEYS[key], { key: SETTINGS_KEYS[key], value: String(currentSettings[key]) });
   }
@@ -66,7 +66,7 @@ export async function analyzeBackup(backup: FocusBackup, database: FocusDatabase
   for (const [table, rows] of [[database.academicYears, backup.data.academicYears], [database.subjects, backup.data.subjects], [database.sessions, backup.data.sessions]] as const) {
     for (const row of rows) { const existing = await table.get(row.id); if (existing) equivalent(existing, row) ? duplicates++ : conflicts++; }
   }
-  for (const setting of backup.data.settings) { const existing = await database.settings.get(setting.key); if (existing) equivalent(existing, setting) ? duplicates++ : conflicts++; }
+  for (const setting of backup.data.settings) { if (setting.key === "popoutCloseOnCompletion") continue; const existing = await database.settings.get(setting.key); if (existing) equivalent(existing, setting) ? duplicates++ : conflicts++; }
   return { backup, duplicates, conflicts };
 }
 
@@ -85,7 +85,7 @@ export async function restoreBackup(backup: FocusBackup, mode: RestoreMode, poli
     await apply(database.academicYears, backup.data.academicYears, "academicYearsCreated");
     await apply(database.subjects, backup.data.subjects, "subjectsCreated");
     await apply(database.sessions, backup.data.sessions, "sessionsImported");
-    for (const setting of backup.data.settings) { const existing = await database.settings.get(setting.key); if (!existing || policy === "use-imported" || mode === "replace") await database.settings.put(setting.key === SETTINGS_KEYS.popoutRevealShortcut ? { ...setting, value: normalizeLegacyRevealShortcut(setting.value) } : setting); else if (equivalent(existing, setting)) summary.duplicatesSkipped++; else summary.conflicts++; }
+    for (const setting of backup.data.settings) { if (setting.key === "popoutCloseOnCompletion") continue; const existing = await database.settings.get(setting.key); if (!existing || policy === "use-imported" || mode === "replace") await database.settings.put(setting.key === SETTINGS_KEYS.popoutRevealShortcut ? { ...setting, value: normalizeLegacyRevealShortcut(setting.value) } : setting); else if (equivalent(existing, setting)) summary.duplicatesSkipped++; else summary.conflicts++; }
   });
   return summary;
 }
