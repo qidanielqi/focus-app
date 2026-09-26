@@ -1,3 +1,4 @@
+import { updatePreview } from "../updatePreview";
 import { CURRENT_YEAR_KEY } from "../data";
 import { resetPreferences } from "../resetPreferences";
 import { formatTimerDate, effectiveTimerDateFormat, timerDateFormats } from "../dateTime";
@@ -262,5 +263,6 @@ function About() {
     <section><h3>{t("Application")}</h3><dl><div><dt>{t("Version")}</dt><dd>{version}</dd></div><div><dt>{t("Platform")}</dt><dd>Windows</dd></div><div><dt>{t("Data storage")}</dt><dd>{t("Local device")}</dd></div></dl></section>
     <section><h3>{t("Built with")}</h3><p>Tauri / React / TypeScript</p></section>
     <UpdateControls/>
+    {import.meta.env.DEV && isTauri() && <section><h3>{t("Developer tools")}</h3><Row label={t("Preview update dialog")}><button className="secondary-action" onClick={() => updatePreview.open(version)}>{t("Preview update dialog")}</button></Row></section>}
   </div></div>;
 }

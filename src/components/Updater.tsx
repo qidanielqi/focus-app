@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { localeCode } from "../i18n";
 import { updater, type UpdateState } from "../updater";
+import { updatePreview } from "../updatePreview";
 
 const useUpdater = () => useSyncExternalStore(updater.subscribe, updater.getSnapshot);
 const busy = (state: UpdateState) => ["checking", "downloading", "installing", "restarting"].includes(state.phase);
@@ -24,7 +25,10 @@ export function UpdateControls() {
 
 export function UpdatePrompt({ ready = true }: { ready?: boolean }) {
   const { t } = useTranslation();
-  const state = useUpdater();
+  const realState = useUpdater();
+  const preview = useSyncExternalStore(updatePreview.subscribe, updatePreview.getSnapshot);
+  const state = preview ?? realState;
+  const dismiss = () => preview ? updatePreview.close() : updater.later();
   const [preferenceError, setPreferenceError] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -42,13 +46,13 @@ export function UpdatePrompt({ ready = true }: { ready?: boolean }) {
   }, [state.promptOpen]);
   const notes = meaningfulReleaseNotes(state.notes);
   const progress = state.contentLength ? Math.min(1, state.downloaded / state.contentLength) : undefined;
-  return <dialog ref={dialog} className="modal update-dialog" aria-labelledby="update-title" onCancel={event => { event.preventDefault(); if (!busy(state)) updater.later(); }}>
+  return <dialog ref={dialog} className="modal update-dialog" aria-labelledby="update-title" onCancel={event => { event.preventDefault(); if (!busy(state)) dismiss(); }}>
     <h2 id="update-title">{t("Update available")}</h2>
     <dl className="update-versions"><div><dt>{t("Current version")}</dt><dd>{state.currentVersion}</dd></div><div><dt>{t("Available version")}</dt><dd>{state.availableVersion}</dd></div></dl>
     {notes ? <section className="update-notes" tabIndex={0} aria-label={t("What's new")}><h3>{t("What's new")}</h3><ReleaseNotes notes={notes}/></section> : <p>{t("A new version of Focus is ready to install.")}</p>}
     <p role="status">{state.phase === "available" ? "" : t(statusKey(state))}</p>
     {state.phase === "downloading" && <><progress aria-label={t("Downloading update…")} max={1} value={progress}/><small>{progress === undefined ? new Intl.NumberFormat(localeCode(), { style: "unit", unit: "megabyte", maximumFractionDigits: 1 }).format(state.downloaded / 1_000_000) : progress.toLocaleString(localeCode(), { style: "percent", maximumFractionDigits: 0 })}</small></>}
-    {preferenceError && <p role="alert" className="field-error">{t("Unable to save update preference. Try again.")}</p>}
-    <div className="modal-actions">{state.automaticPrompt && <button disabled={busy(state)} onClick={() => { setPreferenceError(false); void updater.dontShowAgain().catch(() => setPreferenceError(true)); }}>{t("Don't show again")}</button>}<button disabled={busy(state)} onClick={() => updater.later()}>{t("Later")}</button><button className="primary-action" disabled={busy(state)} onClick={() => void updater.install()}>{t(state.error === "restart" ? "Restart Focus" : "Update now")}</button></div>
+    {preferenceError && !preview && <p role="alert" className="field-error">{t("Unable to save update preference. Try again.")}</p>}
+    <div className="modal-actions">{state.automaticPrompt && <button disabled={busy(state)} onClick={() => { setPreferenceError(false); void updater.dontShowAgain().catch(() => setPreferenceError(true)); }}>{t("Don't show again")}</button>}<button disabled={busy(state)} onClick={dismiss}>{t("Later")}</button><button className="primary-action" disabled={Boolean(preview) || busy(state)} onClick={() => { if (!preview) void updater.install(); }}>{t(state.error === "restart" ? "Restart Focus" : "Update now")}</button></div>
   </dialog>;
 }

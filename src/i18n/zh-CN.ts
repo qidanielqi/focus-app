@@ -1,6 +1,16 @@
 import en from "./en";
 
 const zhCN: Record<keyof typeof en, string> = {
+  "<30 min": "<30 分钟",
+  "30–59 min": "30–59 分钟",
+  "60–89 min": "60–89 分钟",
+  "90–119 min": "90–119 分钟",
+  "2–2:59 hr": "2–2:59 小时",
+  "3 hr+": "3 小时以上",
+  "Academic Year summary": "学年汇总",
+  "Developer tools": "开发者工具",
+  "Preview update dialog": "预览更新对话框",
+
   "More start options": "更多开始选项",
   "Start stopwatch": "开始秒表",
   "Timer finished while Focus was closed": "Focus 关闭期间计时器已结束",

@@ -20,7 +20,7 @@ describe("trends and distributions",()=>{
   it("creates a cumulative total that never decreases",()=>{const values=cumulativeTotals([{key:"a",label:"a",start:1,seconds:20,sessionCount:1},{key:"b",label:"b",start:2,seconds:10,sessionCount:1}]);expect(values.map((v)=>v.cumulativeSeconds)).toEqual([20,30]);});
   it("includes zero-study calendar days in rolling averages",()=>{const points=calendarDailySeries([session("a",at(2026,1,1),700)],at(2026,1,1),at(2026,1,8));expect(points).toHaveLength(7);expect(rollingAverage(points,7).at(-1)?.averageSeconds).toBe(100);expect(rollingAverage(points,30).at(-1)?.averageSeconds).toBeCloseTo(23.333);});
   it("calculates median focused Session length",()=>{expect(medianSessionSeconds([session("a",1,10),session("b",2,20),session("c",3,30),session("d",4,40)])).toBe(25);});
-  it("uses the specified Session-length buckets",()=>{const buckets=sessionLengthBuckets([20,25,50,75,120].map((m,i)=>session(String(i),i,m*60)));expect(buckets.map((b)=>b.count)).toEqual([1,1,1,1,1]);});
+  it("uses the specified Session-length buckets",()=>{const buckets=sessionLengthBuckets([0,1799,1800,3599,3600,5399,5400,7199,7200,10799,10800,99999].map((seconds,i)=>session(String(i),i,seconds)));expect(buckets.map((b)=>b.count)).toEqual([2,2,2,2,2,2]);expect(sessionLengthBuckets([]).map(b=>b.count)).toEqual([0,0,0,0,0,0]);});
 });
 
 describe("adaptive heatmap scale",()=>{
@@ -36,11 +36,19 @@ describe("Academic Year comparison", () => {
   const years = ["ib","empty"].map(id => ({id,name:id,startDate:"2026-01-01",endDate:"2026-12-31",archived:false}));
   const rows = [session("a",at(2026,1,1),3600),session("b",at(2026,1,1,14),1800),session("c",at(2026,1,2),1800)];
   it("uses the same Sessions for totals, counts and active-day average", () => {
-    expect(academicYearTotals(rows,years,[])).toMatchObject([{academicYearId:"ib",seconds:7200,sessions:3,activeDays:2,averageActiveDaySeconds:3600}]);
+    expect(academicYearTotals(rows,years,[])).toMatchObject([{academicYearId:"ib",seconds:7200,sessions:3,averageSessionSeconds:2400,activeDays:2,averageActiveDaySeconds:3600}]);
   });
   it("applies range filtering to both metrics and omits empty years", () => {
     const filtered = filterSessions(rows,{start:at(2026,1,2,0),end:at(2026,1,3,0)});
-    expect(academicYearTotals(filtered,years,[])).toMatchObject([{academicYearId:"ib",seconds:1800,sessions:1,averageActiveDaySeconds:1800}]);
+    expect(academicYearTotals(filtered,years,[])).toMatchObject([{academicYearId:"ib",seconds:1800,sessions:1,averageSessionSeconds:1800,activeDays:1,averageActiveDaySeconds:1800}]);
     expect(academicYearTotals([],years,[])).toEqual([]);
   });
+});
+
+it("keeps year entity counts independent of session date range", () => {
+  const years = [{ id: "ib", name: "IB", archived: false }];
+  const subjects = ["math", "no-sessions"].map(id => ({ id, name: id, academicYearId: "ib", archived: false, color: "blue" }));
+  const rows = [session("old", at(2025,1,1),3600),session("new",at(2026,1,1),1800)];
+  expect(academicYearTotals(filterSessions(rows,{start:at(2026,1,1,0)}),years,subjects)).toMatchObject([{subjects:2,sessions:1,averageSessionSeconds:1800}]);
+  expect(academicYearTotals(rows,years,subjects)).toMatchObject([{subjects:2,sessions:2,averageSessionSeconds:2700}]);
 });

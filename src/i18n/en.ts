@@ -1,4 +1,14 @@
 const en = {
+  "<30 min": "<30 min",
+  "30–59 min": "30–59 min",
+  "60–89 min": "60–89 min",
+  "90–119 min": "90–119 min",
+  "2–2:59 hr": "2–2:59 hr",
+  "3 hr+": "3 hr+",
+  "Academic Year summary": "Academic Year summary",
+  "Developer tools": "Developer tools",
+  "Preview update dialog": "Preview update dialog",
+
   "More start options": "More start options",
   "Start stopwatch": "Start stopwatch",
   "Timer finished while Focus was closed": "Timer finished while Focus was closed",

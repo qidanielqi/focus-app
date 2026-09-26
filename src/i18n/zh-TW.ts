@@ -1,6 +1,16 @@
 import en from "./en";
 
 const zhTW: Record<keyof typeof en, string> = {
+  "<30 min": "<30 分鐘",
+  "30–59 min": "30–59 分鐘",
+  "60–89 min": "60–89 分鐘",
+  "90–119 min": "90–119 分鐘",
+  "2–2:59 hr": "2–2:59 小時",
+  "3 hr+": "3 小時以上",
+  "Academic Year summary": "學年摘要",
+  "Developer tools": "開發者工具",
+  "Preview update dialog": "預覽更新對話框",
+
   "More start options": "更多開始選項",
   "Start stopwatch": "開始碼錶",
   "Timer finished while Focus was closed": "Focus 關閉期間計時器已結束",

@@ -30,7 +30,7 @@ export function useTimer() {
   const isPopout = window.location.hash.includes("popout");
   const firstMainMount = !isPopout && sessionStorage.getItem(TIMER_INITIALIZED_KEY) !== "true";
   const initial = useRef(readStored());
-  const [state, setState] = useState<TimerState>(initial.current);
+  const [state, setState] = useState<TimerState>(() => stateAt(initial.current));
   const [recovery, setRecovery] = useState<TimerRecovery>(() => firstMainMount && initial.current.running && !initial.current.paused ? "checking" : null);
   const [saveError, setSaveError] = useState(false);
   const stateRef = useRef(state);

@@ -43,7 +43,7 @@ it("uses the release version without changing schema or rejecting older backup p
   await source.settings.put({key:"dateFormat",value:"standard"});
   await source.settings.put({key:"language",value:"ja"});
   const backup=await createBackup(source);
-  expect(backup.appVersion).toBe("2.1.1");
+  expect(backup.appVersion).toBe("2.2.0");
   expect(backup.formatVersion).toBe(1);
   for (const mode of ["replace","merge"] as const) {
     const target=database();
@@ -63,7 +63,7 @@ it.each(["replace", "merge"] as const)("normalizes imported F-key shortcuts duri
   backup.data.settings=backup.data.settings.filter(row=>row.key!=="popoutRevealShortcut");
   backup.data.settings.push({key:"popoutRevealShortcut",value:"Ctrl+F8"});
   await restoreBackup(validateBackup(backup),mode,"use-imported",target);
-  expect((await target.settings.get("popoutRevealShortcut"))?.value).toBe("Alt+Backquote");
+  expect((await target.settings.get("popoutRevealShortcut"))?.value).toBe("Ctrl+Alt+KeyF");
   await target.settings.put({key:"popoutRevealShortcut",value:"Ctrl+KeyF"});
   await restoreBackup(backup,"merge","keep-existing",target);
   expect((await target.settings.get("popoutRevealShortcut"))?.value).toBe("Ctrl+KeyF");

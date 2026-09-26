@@ -1,6 +1,16 @@
 import en from "./en";
 
 const ja: Record<keyof typeof en, string> = {
+  "<30 min": "30分未満",
+  "30–59 min": "30～59分",
+  "60–89 min": "60～89分",
+  "90–119 min": "90～119分",
+  "2–2:59 hr": "2時間～2時間59分",
+  "3 hr+": "3時間以上",
+  "Academic Year summary": "学年の概要",
+  "Developer tools": "開発者ツール",
+  "Preview update dialog": "更新ダイアログのプレビュー",
+
   "More start options": "開始オプション",
   "Start stopwatch": "ストップウォッチを開始",
   "Timer finished while Focus was closed": "Focus を閉じている間にタイマーが終了しました",
